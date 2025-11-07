@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  migrate-metadata:
+    build:
+      context: .
+      dockerfile: Dockerfile.migrate
+    environment:
+      - DATABASE_URL_DEV=postgresql://slidebox_dev_user:andersen_win@135.181.148.104:5432/slidebox_dev?schema=public
+      - DATABASE_URL_PROD=postgresql://slidebox_ad:andersen_win@135.181.148.104:5432/slidebox_prod?schema=public
+    volumes:
+      - ./scripts:/app/scripts
+      - ./prisma:/app/prisma
+    command: npm run migrate:metadata
+    networks:
+      - slidedeck-network
+
+networks:
+  slidedeck-network:
+    external: true 

@@ -1,0 +1,43 @@
+1. Status (одинчный выбор)
+draft, in-review, approved, archived
+ 
+2. Product (Множественный выбор)
+it-services, application-support, it-management, security, tco-optimisation
+ 
+3. Format (одинчный выбор)
+vertical, horizontal
+ 
+4. Language (одинчный выбор)
+en, fr, de, multilang
+ 
+5. User Type (Множественный выбор)
+client, employee, partner
+ 
+6. Components (Множественный выбор)
+table, chart, logo, shift, roadmap, team-content, benefits-content, services-content, plan, schedule, certifications, company-metrics, delivery-process
+ 
+9. Integrations (Множественный выбор)
+jira, slack, crm, google
+ 
+10. Region (одинчный выбор)
+emea, na, global, apac, latam
+ 
+11. Domain  (одинчный выбор)
+automotive, fintech, retail, healthcare, public-sector, government, defense, logistic, telecom
+ 
+12. Author (Отркрытый ввод)
+
+ 
+13. Version (Отркрытый ввод)
+
+ 
+14. Department
+ms
+
+15. Case Study (Флаг)
+
+16. Year of start (одинчный выбор)
+Выбор из годов начиная с 2010 по сейчас
+
+17. Year of finish (одинчный выбор)
+Выбор из годов начиная с 2010 по сейчас

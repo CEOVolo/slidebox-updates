@@ -1,0 +1,81 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  test:
+    name: Test and Lint
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run linter
+      run: npm run lint
+    
+    - name: Type check
+      run: npm run type-check
+    
+    - name: Build application
+      run: npm run build
+
+  deploy:
+    name: Deploy to Production
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Deploy to server
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.HOST }}
+        username: ${{ secrets.USERNAME }}
+        key: ${{ secrets.SSH_KEY }}
+        port: ${{ secrets.PORT || 22 }}
+        script: |
+          echo "🚀 Starting deployment..."
+          
+          # Navigate to app directory
+          cd /home/slidedeck/app
+          
+          # Pull latest changes
+          git pull origin main
+          
+          # Load environment variables
+          export $(cat .env.prod | xargs)
+          
+          # Stop current containers
+          docker compose -f docker-compose.prod.yml down
+          
+          # Build and start new containers
+          docker compose -f docker-compose.prod.yml up -d --build
+          
+          # Clean up unused Docker resources
+          docker system prune -f
+          
+          # Check if containers are running
+          sleep 10
+          docker compose -f docker-compose.prod.yml ps
+          
+          echo "✅ Deployment completed!" 

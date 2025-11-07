@@ -1,0 +1,336 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Slide {
+  id            String              @id @default(cuid())
+  title         String
+  description   String?
+  category      String              @default("other")
+  subcategory   String?
+  figmaFileId   String
+  figmaNodeId   String
+  figmaFileName String?
+  figmaUrl      String?
+  imageUrl      String?
+  thumbnailUrl  String?
+  width         Float?
+  height        Float?
+  extractedText String?
+  authorId      String?
+  version       String              @default("1.0")
+  isActive      Boolean             @default(true)
+  viewCount     Int                 @default(0)
+  useCount      Int                 @default(0)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  lastChecked   DateTime            @default(now())
+  authorName    String?
+  department    String?
+  domain        String?
+  format        SlideFormat?
+  isCaseStudy   Boolean             @default(false)
+  language      SlideLanguage       @default(en)
+  region        SlideRegion         @default(global)
+  status        SlideStatus         @default(draft)
+  yearFinish    Int?
+  yearStart     Int?
+  favorites     FavoriteSlide[]
+  presentations PresentationSlide[]
+  author        User?               @relation("SlideAuthor", fields: [authorId], references: [id])
+  SlideCategory SlideCategory[]
+  components    SlideComponent[]
+  domains       SlideDomain?
+  integrations  SlideIntegration[]
+  products      SlideProduct[]
+  solutionAreas        SlideSolutionArea[]
+  tags                 SlideTag[]
+  SlideConfidentiality SlideConfidentiality[]
+}
+
+model Product {
+  id     String         @id @default(cuid())
+  code   String         @unique
+  name   String
+  slides SlideProduct[]
+}
+
+model SlideProduct {
+  id        String  @id @default(cuid())
+  slideId   String
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  slide     Slide   @relation(fields: [slideId], references: [id], onDelete: Cascade)
+
+  @@unique([slideId, productId])
+}
+
+model Component {
+  id     String           @id @default(cuid())
+  code   String           @unique
+  name   String
+  slides SlideComponent[]
+}
+
+model SlideComponent {
+  id          String    @id @default(cuid())
+  slideId     String
+  componentId String
+  component   Component @relation(fields: [componentId], references: [id])
+  slide       Slide     @relation(fields: [slideId], references: [id], onDelete: Cascade)
+
+  @@unique([slideId, componentId])
+}
+
+model Integration {
+  id     String             @id @default(cuid())
+  code   String             @unique
+  name   String
+  slides SlideIntegration[]
+}
+
+model SlideIntegration {
+  id            String      @id @default(cuid())
+  slideId       String
+  integrationId String
+  integration   Integration @relation(fields: [integrationId], references: [id])
+  slide         Slide       @relation(fields: [slideId], references: [id], onDelete: Cascade)
+
+  @@unique([slideId, integrationId])
+}
+
+model SolutionArea {
+  id     String              @id @default(cuid())
+  code   String              @unique
+  name   String
+  slides SlideSolutionArea[]
+}
+
+model SlideSolutionArea {
+  id             String       @id @default(cuid())
+  slideId        String
+  solutionAreaId String
+  slide          Slide        @relation(fields: [slideId], references: [id], onDelete: Cascade)
+  solutionArea   SolutionArea @relation(fields: [solutionAreaId], references: [id])
+
+  @@unique([slideId, solutionAreaId])
+}
+
+model Domain {
+  id     String        @id @default(cuid())
+  code   String        @unique
+  name   String
+  slides SlideDomain[]
+}
+
+model SlideDomain {
+  id       String @id @default(cuid())
+  slideId  String @unique
+  domainId String
+  domain   Domain @relation(fields: [domainId], references: [id])
+  slide    Slide  @relation(fields: [slideId], references: [id], onDelete: Cascade)
+
+  @@unique([slideId, domainId])
+}
+
+model Category {
+  id            String          @id @default(cuid())
+  code          String          @unique
+  name          String
+  icon          String?
+  parentId      String?
+  order         Int             @default(0)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  parent        Category?       @relation("CategoryToCategory", fields: [parentId], references: [id])
+  children      Category[]      @relation("CategoryToCategory")
+  SlideCategory SlideCategory[]
+}
+
+model Tag {
+  id          String     @id @default(cuid())
+  name        String     @unique
+  color       String?
+  isAutomatic Boolean    @default(false)
+  usageCount  Int        @default(0)
+  createdAt   DateTime   @default(now())
+  slides      SlideTag[]
+}
+
+model SlideTag {
+  id      String @id @default(cuid())
+  slideId String
+  tagId   String
+  slide   Slide  @relation(fields: [slideId], references: [id], onDelete: Cascade)
+  tag     Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([slideId, tagId])
+}
+
+model Presentation {
+  id          String              @id @default(cuid())
+  title       String
+  description String?
+  pdfUrl      String?
+  authorId    String?
+  isTemplate  Boolean             @default(false)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  author      User?               @relation("PresentationAuthor", fields: [authorId], references: [id])
+  slides      PresentationSlide[]
+}
+
+model PresentationSlide {
+  id             String       @id @default(cuid())
+  presentationId String
+  slideId        String
+  order          Int
+  presentation   Presentation @relation(fields: [presentationId], references: [id], onDelete: Cascade)
+  slide          Slide        @relation(fields: [slideId], references: [id], onDelete: Cascade)
+
+  @@unique([presentationId, slideId])
+  @@index([presentationId, order])
+}
+
+model SearchHistory {
+  id        String   @id @default(cuid())
+  query     String
+  results   Int      @default(0)
+  userId    String?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id])
+}
+
+model FigmaFileSync {
+  id           String   @id @default(cuid())
+  figmaFileId  String   @unique
+  lastModified DateTime
+  lastChecked  DateTime @default(now())
+  isActive     Boolean  @default(true)
+
+  @@index([figmaFileId])
+}
+
+model User {
+  id            String          @id @default(cuid())
+  email         String          @unique
+  name          String?
+  role          String          @default("USER")
+  isActive      Boolean         @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  favorites     FavoriteSlide[]
+  presentations Presentation[]  @relation("PresentationAuthor")
+  searchHistory SearchHistory[]
+  slides        Slide[]         @relation("SlideAuthor")
+
+  @@index([email])
+  @@index([role])
+}
+
+model FavoriteSlide {
+  id        String   @id @default(cuid())
+  userId    String
+  slideId   String
+  createdAt DateTime @default(now())
+  slide     Slide    @relation(fields: [slideId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, slideId])
+}
+
+model Status {
+  id    String @id @default(cuid())
+  code  String @unique
+  name  String
+  order Int    @default(0)
+}
+
+model Format {
+  id    String @id @default(cuid())
+  code  String @unique
+  name  String
+  order Int    @default(0)
+}
+
+model Language {
+  id    String @id @default(cuid())
+  code  String @unique
+  name  String
+  order Int    @default(0)
+}
+
+model Region {
+  id    String @id @default(cuid())
+  code  String @unique
+  name  String
+  order Int    @default(0)
+}
+
+model SlideCategory {
+  id         String   @id @default(cuid())
+  slideId    String
+  categoryId String
+  Category   Category @relation(fields: [categoryId], references: [id])
+  Slide      Slide    @relation(fields: [slideId], references: [id], onDelete: Cascade)
+
+  @@unique([slideId, categoryId])
+}
+
+model SlideConfidentiality {
+  id                String          @id @default(cuid())
+  slideId           String
+  confidentialityId String
+  Slide             Slide           @relation(fields: [slideId], references: [id], onDelete: Cascade)
+  Confidentiality   Confidentiality @relation(fields: [confidentialityId], references: [id])
+
+  @@unique([slideId, confidentialityId])
+}
+
+model Confidentiality {
+  id                   String                 @id @default(cuid())
+  code                 String                 @unique
+  name                 String
+  SlideConfidentiality SlideConfidentiality[]
+}
+
+enum SlideStatus {
+  draft
+  in_review
+  approved
+  archived
+}
+
+enum SlideFormat {
+  vertical
+  horizontal
+}
+
+enum SlideLanguage {
+  en
+  fr
+  de
+  multilang
+}
+
+enum SlideRegion {
+  emea
+  na
+  global
+  apac
+  latam
+}
+
+model SystemSettings {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

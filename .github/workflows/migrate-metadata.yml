@@ -1,0 +1,47 @@
+name: Migrate Metadata to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "migrate" to confirm metadata migration from dev to prod'
+        required: true
+        default: ''
+
+jobs:
+  migrate-metadata:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm == 'migrate'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Install tsx
+      run: npm install -D tsx
+    
+    - name: Generate Prisma Client
+      run: npx prisma generate
+    
+    - name: Run metadata migration
+      env:
+        DATABASE_URL_DEV: ${{ secrets.DATABASE_URL_DEV }}
+        DATABASE_URL_PROD: ${{ secrets.DATABASE_URL_PROD }}
+      run: |
+        echo "📦 Starting metadata migration from DEV to PROD..."
+        npx tsx scripts/migrate-metadata-between-db.ts
+    
+    - name: Verify migration
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL_PROD }}
+      run: |
+        echo "✅ Verifying migration..."
+        npx tsx scripts/verify-metadata.ts 

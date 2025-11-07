@@ -1,0 +1,475 @@
+diff --git a/app/api/slides/route.ts b/app/api/slides/route.ts
+index 0000000..1111111 100644
+--- a/app/api/slides/route.ts
++++ b/app/api/slides/route.ts
+@@
+-    // Category filter (supports 'all' and 'uncategorized')
+-    if (category && category !== 'all') {
+-      if (category === 'uncategorized') {
+-        // Slides without any categories
+-        // @ts-ignore - Prisma types
+-        where.SlideCategory = { none: {} };
+-      } else {
+-        // @ts-ignore - Prisma types
+-        where.SlideCategory = { some: { categoryId: category } };
+-      }
+-    }
++    // Category filter (supports 'all', 'uncategorized', and parent categories including descendants)
++    if (category && category !== 'all') {
++      if (category === 'uncategorized') {
++        // Slides without any categories
++        // @ts-ignore - Prisma types
++        where.SlideCategory = { none: {} };
++      } else {
++        // Resolve descendants for parent category selection (up to 2 levels deep)
++        // @ts-ignore - Prisma types
++        const selectedCategory = await prisma.category.findUnique({
++          where: { id: category },
++          include: {
++            children: {
++              include: { children: true }
++            }
++          }
++        });
++
++        const categoryIds: string[] = [];
++        if (selectedCategory) {
++          categoryIds.push(selectedCategory.id);
++          if (selectedCategory.children) {
++            for (const child of selectedCategory.children as any[]) {
++              if (child?.id) categoryIds.push(child.id);
++              if (child?.children) {
++                for (const grand of child.children as any[]) {
++                  if (grand?.id) categoryIds.push(grand.id);
++                }
++              }
++            }
++          }
++        }
++
++        // @ts-ignore - Prisma types
++        where.SlideCategory = categoryIds.length > 0
++          ? { some: { categoryId: { in: categoryIds } } }
++          : { some: { categoryId: category } };
++      }
++    }
+
+diff --git a/components/CategoryTree.tsx b/components/CategoryTree.tsx
+index 0000000..1111111 100644
+--- a/components/CategoryTree.tsx
++++ b/components/CategoryTree.tsx
+@@
+         {loading ? (
+           <div className="px-3 py-4 text-center text-sm text-gray-500">
+             Loading categories...
+           </div>
+         ) : (
+           <>
+             {visibleCategories.map(category => renderCategoryNode(category))}
+             
+-            {/* Uncategorized категория - в конце списка */}
+-            {!loading && uncategorizedCount > 0 && (
++            {/* Uncategorized категория - показывать только в режиме All Slides */}
++            {!loading && selectedCategory === 'all' && uncategorizedCount > 0 && (
+               <div
+                 className={`
+                   flex items-center justify-between px-3 py-2 text-sm cursor-pointer rounded-md transition-colors mt-2 border-t border-gray-100
+-                  ${selectedCategory === 'uncategorized' 
+-                    ? 'bg-yellow-100 text-gray-800 border-r-2 border-yellow-400 font-medium' 
+-                    : 'hover:bg-gray-100 text-gray-700'
+-                  }
++                  hover:bg-gray-100 text-gray-700
+                 `}
+                 onClick={() => onCategorySelect('uncategorized')}
+               >
+                 <div className="flex items-center">
+                   <span className="mr-2 text-lg">📂</span>
+                   <span>Uncategorized</span>
+                 </div>
+                 <span className={`
+                   text-xs px-2 py-1 rounded-full bg-gray-200 text-gray-600 font-medium
+-                  ${selectedCategory === 'uncategorized' ? 'bg-yellow-200 text-gray-700' : ''}
+                 `}>
+                   {uncategorizedCount}
+                 </span>
+               </div>
+             )}
+           </>
+         )}
+       </div>
+     </div>
+   );
+ }
+
+diff --git a/components/GroupedSlideGrid.tsx b/components/GroupedSlideGrid.tsx
+index 0000000..1111111 100644
+--- a/components/GroupedSlideGrid.tsx
++++ b/components/GroupedSlideGrid.tsx
+@@
+   const groupSlidesByCategory = (): SlideGroup[] => {
+     const groups: Map<string, SlideGroup> = new Map();
+@@
+-    // Distribute slides by all their categories
+-    slides.forEach(slide => {
+-      if (slide.categories && slide.categories.length > 0) {
+-        slide.categories.forEach((catRel: any) => {
+-          if (groups.has(catRel.categoryId)) {
+-            const group = groups.get(catRel.categoryId)!;
+-            group.slides.push(slide);
+-            group.count++;
+-          }
+-        });
+-      } else {
+-        // Slides without categories
+-        const uncategorizedGroup = groups.get('uncategorized')!;
+-        uncategorizedGroup.slides.push(slide);
+-        uncategorizedGroup.count++;
+-      }
+-    });
++    // Distribute slides by all their categories (support both SlideCategory and legacy shapes)
++    const extractCategoryIds = (s: any): string[] => {
++      const relations = s?.SlideCategory || s?.categories || [];
++      const ids: string[] = [];
++      for (const rel of relations) {
++        if (!rel) continue;
++        if (typeof rel === 'string') {
++          ids.push(rel);
++        } else if (rel.categoryId) {
++          ids.push(rel.categoryId);
++        } else if (rel.category?.id) {
++          ids.push(rel.category.id);
++        } else if (rel.id) {
++          ids.push(rel.id);
++        }
++      }
++      return ids;
++    };
++
++    slides.forEach(slide => {
++      const categoryIds = extractCategoryIds(slide);
++      if (categoryIds.length > 0) {
++        categoryIds.forEach((categoryId: string) => {
++          if (groups.has(categoryId)) {
++            const group = groups.get(categoryId)!;
++            group.slides.push(slide);
++            group.count++;
++          }
++        });
++      } else {
++        // Slides without categories
++        const uncategorizedGroup = groups.get('uncategorized')!;
++        uncategorizedGroup.slides.push(slide);
++        uncategorizedGroup.count++;
++      }
++    });
+@@
+-    // Возвращаем группы: родительские (если есть слайды в них или подкатегориях) + подкатегории с слайдами + uncategorized
+-    const orderedGroups: SlideGroup[] = [];
+-    
+-    // Сначала обрабатываем все родительские категории
+-    categories.forEach(parentCategory => {
+-      const parentGroup = groups.get(parentCategory.id);
+-      
+-      // Показываем родительскую категорию если:
+-      // 1. В ней есть прямые слайды, ИЛИ
+-      // 2. В её подкатегориях есть слайды
+-      const hasDirectSlides = parentGroup && parentGroup.slides.length > 0;
+-      const hasSubcategorySlides = parentCategory.children?.some((child: any) => {
+-        const childGroup = groups.get(child.id);
+-        return childGroup && childGroup.slides.length > 0;
+-      });
+-      
+-      if (parentGroup && (hasDirectSlides || hasSubcategorySlides)) {
+-        orderedGroups.push(parentGroup);
+-      }
+-      
+-      // Затем добавляем все подкатегории этой родительской категории (только с слайдами)
+-      if (parentCategory.children) {
+-        parentCategory.children.forEach((childCategory: any) => {
+-          const childGroup = groups.get(childCategory.id);
+-          if (childGroup && childGroup.slides.length > 0) {
+-            orderedGroups.push(childGroup);
+-          }
+-        });
+-      }
+-    });
+-    
+-    // В конце добавляем uncategorized, если есть
+-    const uncategorizedGroup = groups.get('uncategorized');
+-    if (uncategorizedGroup && uncategorizedGroup.count > 0) {
+-      orderedGroups.push(uncategorizedGroup);
+-    }
+-    
+-    return orderedGroups;
++    // Возвращаем группы согласно выбранной категории
++    const orderedGroups: SlideGroup[] = [];
++
++    const isParentSelection = selectedCategory 
++      ? categories.some((parent: any) => parent.id === selectedCategory)
++      : false;
++    const isChildSelection = selectedCategory 
++      ? categories.some((parent: any) => parent.children?.some((child: any) => child.id === selectedCategory))
++      : false;
++
++    if (selectedCategory && selectedCategory !== 'all') {
++      if (isParentSelection) {
++        // Для выбранной родительской категории: показываем только её подкатегории с слайдами
++        const parent = categories.find((p: any) => p.id === selectedCategory);
++        if (parent?.children) {
++          parent.children.forEach((child: any) => {
++            const childGroup = groups.get(child.id);
++            if (childGroup && childGroup.slides.length > 0) {
++              orderedGroups.push(childGroup);
++            }
++          });
++        }
++        // Не добавляем родителя и не добавляем uncategorized
++        return orderedGroups;
++      }
++      if (isChildSelection) {
++        // Для выбранной подкатегории: показываем только её группу
++        const childGroup = groups.get(selectedCategory);
++        if (childGroup && childGroup.slides.length > 0) {
++          orderedGroups.push(childGroup);
++        }
++        return orderedGroups;
++      }
++      // Если выбранная категория не найдена как родитель/дочерняя — вернем пустой список
++      return orderedGroups;
++    }
++
++    // Режим All Slides: родительские + дочерние (с слайдами)
++    categories.forEach(parentCategory => {
++      const parentGroup = groups.get(parentCategory.id);
++
++      const hasDirectSlides = parentGroup && parentGroup.slides.length > 0;
++      const hasSubcategorySlides = parentCategory.children?.some((child: any) => {
++        const childGroup = groups.get(child.id);
++        return childGroup && childGroup.slides.length > 0;
++      });
++
++      if (parentGroup && (hasDirectSlides || hasSubcategorySlides)) {
++        orderedGroups.push(parentGroup);
++      }
++
++      if (parentCategory.children) {
++        parentCategory.children.forEach((childCategory: any) => {
++          const childGroup = groups.get(childCategory.id);
++          if (childGroup && childGroup.slides.length > 0) {
++            orderedGroups.push(childGroup);
++          }
++        });
++      }
++    });
++
++    // В режиме All Slides добавляем Uncategorized ПЕРВЫМ
++    const uncategorizedGroup = groups.get('uncategorized');
++    if (selectedCategory === 'all' && uncategorizedGroup && uncategorizedGroup.count > 0) {
++      orderedGroups.unshift(uncategorizedGroup);
++    }
++
++    return orderedGroups;
+   };
+@@
+-  useEffect(() => {
+-    if (slides.length > 0) {
+-      const autoExpand = new Set<string>();
+-      const slideGroups = groupSlidesByCategory();
+-      
+-      // Если есть поисковый запрос - раскрываем все категории с результатами
+-      if (searchQuery && searchQuery.trim()) {
+-        slideGroups.forEach(group => {
+-          if (group.slides.length > 0) {
+-            const categoryId = group.category?.id || 'uncategorized';
+-            autoExpand.add(categoryId);
+-          }
+-        });
+-      } else if (expandedCategories.size === 0) {
+-        // При первой загрузке раскрываем категории с 10 или менее слайдами, но не более 3 категорий
+-        const smallGroups = slideGroups
+-          .filter(group => group.count <= 10)
+-          .slice(0, 3);
+-        
+-        smallGroups.forEach(group => {
+-          const categoryId = group.category?.id || 'uncategorized';
+-          autoExpand.add(categoryId);
+-        });
+-      }
+-      
+-      // Если есть выбранная категория, обязательно её раскрываем
+-      if (selectedCategory && selectedCategory !== 'all') {
+-        autoExpand.add(selectedCategory);
+-      }
+-      
+-      if (autoExpand.size > 0) {
+-        setExpandedCategories(autoExpand);
+-      }
+-    }
+-  }, [slides, selectedCategory, searchQuery]); // Добавляем searchQuery в зависимости
++  useEffect(() => {
++    if (slides.length === 0) return;
++
++    const autoExpand = new Set<string>();
++    const slideGroups = groupSlidesByCategory();
++
++    if (selectedCategory === 'all') {
++      // Поиск: раскрываем категории с результатами; без поиска — всё свернуто по умолчанию
++      if (searchQuery && searchQuery.trim()) {
++        slideGroups.forEach(group => {
++          if (group.slides.length > 0) {
++            const categoryId = group.category?.id || 'uncategorized';
++            autoExpand.add(categoryId);
++          }
++        });
++      }
++    } else {
++      // Не 'all'
++      const isParentSelection = selectedCategory 
++        ? categories.some((parent: any) => parent.id === selectedCategory)
++        : false;
++      const isChildSelection = selectedCategory 
++        ? categories.some((parent: any) => parent.children?.some((child: any) => child.id === selectedCategory))
++        : false;
++
++      if (isParentSelection) {
++        // Для родителя — оставить все свернутыми (ничего не добавляем)
++      } else if (isChildSelection && selectedCategory) {
++        // Для подкатегории — раскрыть её одну
++        autoExpand.add(selectedCategory);
++      }
++    }
++
++    setExpandedCategories(autoExpand);
++  }, [slides, selectedCategory, searchQuery]);
+
+diff --git a/RELEASE_NOTES_5.4.0.md b/RELEASE_NOTES_5.4.0.md
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/RELEASE_NOTES_5.4.0.md
+@@
+ +# Release Notes — 5.4.0 (Categories UX)
+ +
+ +Дата: 2025-10-14
+ +
+ +## Ключевые изменения
+ +
+ +- Улучшен UX навигации по категориям:
+ +  - В режиме «All Slides» слайды теперь сгруппированы по категориям.
+ +  - «Uncategorized» отображается первым, остальные группы — свернуты по умолчанию.
+ +  - При поиске автоматически раскрываются только группы с найденными слайдами.
+ +  - При выборе родительской категории на странице отображаются только дочерние папки выбранного родителя (все свернуты по умолчанию).
+ +  - При выборе подкатегории отображаются только её слайды.
+ +
+ +- API: фильтрация по категории на endpoint `/api/slides` теперь поддерживает выбор родительской категории — возвращаются слайды всех её дочерних категорий (до 2 уровней вложенности).
+ +
+ +## Обратная совместимость
+ +
+ +- Миграции БД не требуются. API назад совместим.
+
+diff --git a/CLIENT_UPGRADE_GUIDE_5.4.0.md b/CLIENT_UPGRADE_GUIDE_5.4.0.md
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/CLIENT_UPGRADE_GUIDE_5.4.0.md
+@@
+ +# Руководство по обновлению до версии 5.4.0 (Categories UX)
+ +
+ +Дата выпуска: 2025/10/14
+ +
+ +Версия 5.4.0 — минорное обновление интерфейса и API без изменений схемы БД. Миграции не требуются.
+ +
+ +## Что входит
+ +- Изменён UX категорий и «Uncategorized» (см. `RELEASE_NOTES_5.4.0.md`).
+ +- Endpoint `/api/slides` теперь корректно фильтрует по родительским категориям (включая дочерние уровни).
+ +
+ +## Предусловия
+ +- Node.js 18+ (для dev) / Docker 24+ (для контейнерного развёртывания).
+ +- Доступ к базе Postgres (без изменений схемы).
+ +- Резервная копия `.env` и docker-файлов (на случай отката).
+ +
+ +## Вариант A — Обновление в Docker (рекомендовано)
+ +
+ +1. Получите код
+ +```bash
+ +# на сервере
+ +cd /opt/slidebox
+ +# переключитесь на ветку/тег релиза 5.4.0
+ +git fetch --all --tags
+ +git checkout tags/v5.4.0 -B v5.4.0
+ +```
+ +
+ +2. Пересоберите образы
+ +```bash
+ +docker compose -f docker-compose.prod.yml build --no-cache
+ +```
+ +
+ +3. Примените обновление (без простоя)
+ +```bash
+ +docker compose -f docker-compose.prod.yml up -d
+ +```
+ +
+ +4. Проверка состояния
+ +```bash
+ +docker compose -f docker-compose.prod.yml ps
+ +docker compose -f docker-compose.prod.yml logs -f web
+ +```
+ +
+ +5. Health-check
+ +- Откройте `/` — UI должен загрузиться.
+ +- Откройте `GET /api/slides/stats` — статус 200.
+ +- Выберите родительскую категорию — справа появятся группы её дочерних категорий.
+ +- В «All Slides» сверху есть «Uncategorized», прочие группы свернуты.
+ +
+ +### Откат (rollback)
+ +```bash
+ +git checkout <предыдущий_тег_или_commit>
+ +docker compose -f docker-compose.prod.yml build --no-cache
+ +docker compose -f docker-compose.prod.yml up -d
+ +```
+ +
+ +## Вариант B — Обновление без Docker (bare-metal)
+ +
+ +1. Получите код
+ +```bash
+ +cd /srv/slidebox
+ +git fetch --all --tags
+ +git checkout tags/v5.4.0 -B v5.4.0
+ +```
+ +
+ +2. Установите зависимости и соберите
+ +```bash
+ +npm ci
+ +npm run build
+ +```
+ +
+ +3. Запустите (pm2 как пример)
+ +```bash
+ +pm2 start npm --name slidebox -- run start
+ +pm2 save
+ +```
+ +
+ +4. Health-check — как в Docker варианте.
+ +
+ +## Переменные окружения
+ +Изменений нет. Проверьте, что заданы:
+ +- `DATABASE_URL`
+ +- `NEXTAUTH_URL` (если используется авторизация)
+ +- `FIGMA_*` (если используется импорт из Figma)
+ +
+ +## Чек-лист после обновления
+ +- [ ] UI загружается, ошибок в консоли нет
+ +- [ ] В «All Slides» блок «Uncategorized» — первый; остальные группы свернуты
+ +- [ ] Поиск раскрывает только релевантные группы
+ +- [ ] Выбор родительской категории показывает только дочерние группы
+ +- [ ] Выбор подкатегории показывает её слайды
+ +- [ ] Endpoint `GET /api/slides?category=<parentId>` возвращает слайды дочерних категорий
+ +
+ +## Частые вопросы
+ +- В «All Slides» группы не видны? — Проверьте, что в ответе `/api/slides` есть `SlideCategory`/`categories`, и выполните жёсткое обновление браузера.
+ +- Родитель выбран, но пусто? — Убедитесь, что в БД у дочерних есть активные слайды (`isActive=true`).
+ +
+ +## Поддержка
+ +При проблемах приложите логи контейнера `web` и ответ `GET /api/slides?category=<id>&page=1&limit=20`.
+
+

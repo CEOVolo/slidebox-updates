@@ -1,0 +1,48 @@
+# Команды для выполнения на Hetzner сервере
+# SSH подключение: ssh root@135.181.148.104
+
+# 1. Найти PostgreSQL контейнер
+POSTGRES_CONTAINER=$(docker ps --filter "name=postgres" --format "{{.ID}}" | head -1)
+echo "PostgreSQL container: $POSTGRES_CONTAINER"
+
+# 2. Создать dev пользователя и базу данных
+docker exec -i $POSTGRES_CONTAINER psql -U slidebox_ad -d postgres << 'EOSQL'
+-- Создание пользователя для dev
+CREATE USER slidebox_dev_user WITH PASSWORD 'dev_secure_password';
+
+-- Создание базы данных для dev
+CREATE DATABASE slidebox_dev OWNER slidebox_dev_user;
+
+-- Предоставление прав
+GRANT ALL PRIVILEGES ON DATABASE slidebox_dev TO slidebox_dev_user;
+EOSQL
+
+# 3. Дополнительные права для схемы public
+docker exec -i $POSTGRES_CONTAINER psql -U slidebox_dev_user -d slidebox_dev << 'EOSQL'
+-- Права на схему public
+GRANT ALL ON SCHEMA public TO slidebox_dev_user;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO slidebox_dev_user;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO slidebox_dev_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO slidebox_dev_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO slidebox_dev_user;
+EOSQL
+
+# 4. Проверка созданных объектов
+docker exec $POSTGRES_CONTAINER psql -U slidebox_ad -d postgres -c "\l"
+docker exec $POSTGRES_CONTAINER psql -U slidebox_ad -d postgres -c "\du"
+
+# 5. Проверка подключения к dev базе
+docker exec $POSTGRES_CONTAINER psql -U slidebox_dev_user -d slidebox_dev -c "SELECT version();"
+
+# 6. Проверка портов (должен быть открыт 5432)
+netstat -tulpn | grep :5432
+
+# 7. Если нужно, откройте порт в firewall
+# ufw allow 5432
+
+echo "✅ Dev база данных создана!"
+echo "📋 Данные для подключения:"
+echo "   Хост: 135.181.148.104:5432"
+echo "   База: slidebox_dev"
+echo "   Пользователь: slidebox_dev_user"
+echo "   Пароль: dev_secure_password" 

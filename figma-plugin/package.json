@@ -1,0 +1,25 @@
+{
+  "name": "slidedeck-figma-plugin",
+  "version": "5.3.2",
+  "description": "Figma плагин для создания презентаций из библиотеки слайдов SlideDeck",
+  "main": "dist/code.js",
+  "scripts": {
+    "build": "tsc && copy ui.html dist\\ && copy manifest.json dist\\",
+    "build:unix": "tsc && cp ui.html dist/ && cp manifest.json dist/",
+    "watch": "tsc --watch",
+    "dev": "npm run build && npm run watch"
+  },
+  "devDependencies": {
+    "@figma/plugin-typings": "^1.88.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "figma",
+    "plugin",
+    "presentation",
+    "slides",
+    "slidedeck"
+  ],
+  "author": "SlideDeck Team",
+  "license": "MIT"
+} 

@@ -1,0 +1,31 @@
+{
+  "name": "SlideDeck 2.0 - Presentation Creator",
+  "id": "slidedeck-presentation-creator",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "capabilities": [],
+  "enableProposedApi": false,
+  "editorType": [
+    "figma"
+  ],
+  "networkAccess": {
+    "allowedDomains": [
+      "https://api.figma.com",
+      "https://*.vercel.app",
+      "https://figma-alpha-api.s3.us-west-2.amazonaws.com",
+      "https://s3-us-west-2.amazonaws.com",
+      "https://s3-alpha-sig.figma.com",
+      "https://www.figma.com",
+      "https://*.amazonaws.com"
+    ],
+    "devAllowedDomains": [
+      "http://localhost:3000",
+      "http://localhost:3001",
+      "https://localhost:3000"
+    ]
+  },
+  "permissions": [
+    "currentuser"
+  ]
+} 

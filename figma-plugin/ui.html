@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>SlideDeck 2.0 - Создать презентацию</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif; font-size: 12px; line-height: 1.5; color: #333; background: #fff; padding: 16px; }
+    .container { max-width: 100%; }
+    .header { margin-bottom: 16px; text-align: center; }
+    .header h1 { font-size: 18px; font-weight: 600; color: #1e1e1e; margin-bottom: 4px; }
+    .header p { font-size: 11px; color: #666; }
+    .status { padding: 12px; margin-bottom: 16px; border-radius: 6px; text-align: center; font-size: 11px; }
+    .status.error { background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
+    .progress { display: none; margin-bottom: 16px; }
+    .progress-bar { width: 100%; height: 4px; background: #f0f0f0; border-radius: 2px; overflow: hidden; margin-bottom: 8px; }
+    .progress-fill { height: 100%; background: #18a0fb; transition: width 0.3s ease; width: 0%; }
+    .progress-text { font-size: 11px; color: #666; text-align: center; }
+    .button { width: 100%; padding: 12px 16px; border: none; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.2s ease; font-family: inherit; }
+    .button.primary { background: #18a0fb; color: white; }
+    .button.primary:hover { background: #1976d2; }
+    .button.secondary { background: #f5f5f5; color: #333; border: 1px solid #ddd; }
+    .button.secondary:hover { background: #ebebeb; }
+    .connection-status { padding: 8px 12px; border-radius: 4px; font-size: 10px; margin-bottom: 16px; text-align: center; }
+    .connection-status.disconnected { background: #fff3e0; color: #f57c00; border: 1px solid #ffcc02; }
+    .slide-info { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 4px; padding: 12px; margin-bottom: 16px; font-size: 11px; }
+    .slide-info h3 { font-size: 12px; font-weight: 600; margin-bottom: 8px; color: #495057; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>SlideDeck 2.0</h1>
+      <p>Создание презентации в Figma</p>
+    </div>
+
+    <div id="connection-status" class="connection-status disconnected">
+      🔄 Подключение к веб-приложению...
+    </div>
+
+    <div id="presentation-container" class="hidden">
+      <div class="slide-info">
+        <h3>Текущая презентация: <span id="presentation-title"></span></h3>
+        <p><span id="slide-count"></span> слайдов</p>
+      </div>
+      <div id="actions">
+        <button id="copy-all" class="button primary">Копировать все слайды</button>
+      </div>
+    </div>
+
+    <div id="no-presentation" class="hidden">
+        <p>Откройте или создайте презентацию в веб-приложении.</p>
+        <button id="open-webapp" class="button secondary" style="margin-top: 8px;">Открыть веб-приложение</button>
+      </div>
+
+    <div id="error-container" class="status error hidden"></div>
+
+    <div class="progress" id="progress-bar">
+      <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+      <div class="progress-text" id="progress-text">Подготовка...</div>
+    </div>
+  </div>
+
+  <script>
+    // Global state
+    window.presentation = null;
+
+    // Utility functions
+    function showError(message) {
+      const errorEl = document.getElementById('error-container');
+      if (errorEl) {
+        errorEl.textContent = `Ошибка: ${message}`;
+        errorEl.classList.remove('hidden');
+        
+        const connStatusEl = document.getElementById('connection-status');
+        if (connStatusEl) connStatusEl.style.display = 'none';
+      }
+    }
+
+    function updateConnectionStatus(presentation) {
+      const connStatusEl = document.getElementById('connection-status');
+      const presentationContainerEl = document.getElementById('presentation-container');
+      const noPresentationEl = document.getElementById('no-presentation');
+      
+      if (!connStatusEl || !presentationContainerEl || !noPresentationEl) return;
+
+      connStatusEl.style.display = 'none';
+      if (presentation) {
+        presentationContainerEl.classList.remove('hidden');
+        noPresentationEl.classList.add('hidden');
+        document.getElementById('presentation-title').textContent = presentation.title;
+        document.getElementById('slide-count').textContent = presentation.slides.length;
+        } else {
+        presentationContainerEl.classList.add('hidden');
+        noPresentationEl.classList.remove('hidden');
+      }
+    }
+
+    // Event listeners
+    window.onmessage = async (event) => {
+      if (event.data.pluginMessage) {
+        const { type, payload } = event.data.pluginMessage;
+        console.log('Message from code.ts:', type, payload);
+
+        // Hide error on new message
+        const errorEl = document.getElementById('error-container');
+        if (errorEl) errorEl.classList.add('hidden');
+
+        switch (type) {
+          case 'PRESENTATION_LOADED':
+            window.presentation = payload;
+            updateConnectionStatus(payload);
+            break;
+          case 'FETCH_ERROR':
+            showError(payload.error);
+            break;
+          case 'COPY_PROGRESS':
+            const progressBar = document.getElementById('progress-bar');
+            const progressFill = document.getElementById('progress-fill');
+            const progressText = document.getElementById('progress-text');
+            if (progressBar && progressFill && progressText) {
+                progressBar.style.display = 'block';
+                const percentage = (payload.copied / payload.total) * 100;
+                progressFill.style.width = `${percentage}%`;
+                progressText.textContent = `Копирование слайда ${payload.copied} из ${payload.total}...`;
+            }
+            break;
+          case 'COPY_COMPLETE':
+            const progressBarOnComplete = document.getElementById('progress-bar');
+            if(progressBarOnComplete) progressBarOnComplete.style.display = 'none';
+            // Optionally show a success message
+            break;
+          case 'ERROR':
+            showError(payload.message);
+            break;
+        }
+      }
+    };
+
+    document.getElementById('copy-all').onclick = () => {
+      if (window.presentation) {
+        parent.postMessage({ pluginMessage: { type: 'COPY_SLIDES', payload: window.presentation.slides } }, '*');
+      } else {
+        showError("Презентация не загружена.");
+      }
+    };
+
+    document.getElementById('open-webapp').onclick = () => {
+      parent.postMessage({ pluginMessage: { type: 'OPEN_WEBAPP' } }, '*');
+    };
+
+    // Initial fetch to get data from the web-app
+    parent.postMessage({ pluginMessage: { type: 'FETCH_PRESENTATION' } }, '*');
+  </script>
+</body>
+</html> 
