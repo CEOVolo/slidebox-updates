@@ -1642,7 +1642,7 @@ export default function ModerationPage() {
                                             isCaseStudy: fullData.isCaseStudy,
                                             yearStart: fullData.yearStart,
                                             yearFinish: fullData.yearFinish,
-                                            createdAt: new Date(fullData.createdAt),
+                                            createdAt: typeof fullData.createdAt === 'string' ? fullData.createdAt : new Date(fullData.createdAt).toISOString(),
                                             categories: (fullData as any).SlideCategory || [],
                                             tags: fullData.tags || [],
                                             products: fullData.products || [],
@@ -1653,7 +1653,12 @@ export default function ModerationPage() {
                                           };
                                           // ВАЖНО: Устанавливаем и selectedSlide и fullSlideData для правильной работы модального окна
                                           setSelectedSlide(draftSlide);
-                                          setFullSlideData(fullData);
+                                          // Преобразуем createdAt в Date для SlideEditModal (если это строка)
+                                          setFullSlideData({
+                                            ...fullData,
+                                            createdAt: typeof fullData.createdAt === 'string' ? new Date(fullData.createdAt) : fullData.createdAt,
+                                            updatedAt: typeof fullData.updatedAt === 'string' ? new Date(fullData.updatedAt) : fullData.updatedAt
+                                          });
                                         } else {
                                           const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
                                           console.error('Failed to load slide details:', errorData);
