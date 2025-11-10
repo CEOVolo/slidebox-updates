@@ -19,13 +19,14 @@ interface ApiCategory {
 interface DraftSlide {
   id: string;
   title: string;
+  description?: string;
   categories?: { categoryId: string; category: { name: string } }[];
   figmaNodeId: string;
   figmaFileId: string;
-  figmaFileName: string;
+  figmaFileName?: string;
   imageUrl: string;
-  width: number;
-  height: number;
+  width?: number;
+  height?: number;
   extractedText?: string;
   tags?: { id: string; name: string }[];
   createdAt: string;
@@ -46,6 +47,7 @@ interface DraftSlide {
   components?: { id: string; component: { id: string; code: string; name: string } }[];
   integrations?: { id: string; integration: { id: string; code: string; name: string } }[];
   solutionAreas?: { id: string; solutionArea: { id: string; code: string; name: string } }[];
+  SlideConfidentiality?: any[];
   isActive?: boolean;
   _qualityScale?: number; // Текущее качество превью для отслеживания в UI
 }
